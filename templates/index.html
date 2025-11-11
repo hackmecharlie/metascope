@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Metadata Comparison</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding-top: 50px;
+        background-color: #f8f8f8;
+      }
+
+      h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: #333;
+      }
+
+      .form-container {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .file-input {
+        width: calc(100% - 40px);
+      }
+
+      .btn-compare {
+        width: calc(100% - 40px);
+        margin-top: 10px;
+      }
+
+      .filter-input {
+        width: calc(100% - 20px);
+        margin-bottom: 20px;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: auto;
+        max-width: 100%;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        background-color: #fff;
+        margin-bottom: 20px;
+      }
+
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: left;
+        word-wrap: break-word;
+        white-space: normal;
+        max-width: 300px;
+      }
+
+      th {
+        background-color: #f2f2f2;
+        cursor: pointer;
+      }
+
+      .diff {
+        background-color: #ffe4c4;
+        font-style: bold;
+      }
+    </style>
+  </head>
+  
+  <body>
+    <div class="container">
+      <h1>Metadata Comparison</h1>
+      <div class="form-container">
+        <!-- Combined form for file upload -->
+        <form id="fileForm" action="/upload_and_compare" method="POST" enctype="multipart/form-data">
+          <div class="form-group">
+            <input type="file" class="form-control-file file-input" name="files" multiple>
+          </div>
+          <button type="submit" class="btn btn-success btn-compare">Compare Metadata</button>
+        </form>
+      </div>
+      <div class="form-container">
+        <!-- Combined filter input -->
+        <input type="text" id="filterInput" class="form-control filter-input" placeholder="Filter by Key or Value">
+      </div>
+      <div id="tableContainer"></div>
+    </div>
+    <script>
+      document.getElementById('fileForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+
+            fetch('/upload_and_compare', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    displayMetadata(data.metadata, data.paths, data.diff_indices);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+      function displayMetadata(metadataList, filePaths, diffIndices) {
+        var tableContainer = document.getElementById('tableContainer');
+        tableContainer.innerHTML = '';
+        var table = document.createElement('table');
+        table.classList.add('table');
+        var thead = table.createTHead();
+        var tbody = table.createTBody();
+        var headerRow = thead.insertRow();
+        var pathHeader = document.createElement('th');
+        pathHeader.textContent = 'File Paths';
+            headerRow.appendChild(pathHeader);
+            for (var i = 0; i < filePaths.length; i++) {
+                var th = document.createElement('th');
+                var fileName = filePaths[i].split("/").pop();
+                th.textContent = fileName;
+                headerRow.appendChild(th);
+            }
+            
+            
+ 
+        var parameters = [];
+            metadataList.forEach(metadata => {
+                Object.keys(metadata).forEach(key => {
+                    if (!parameters.includes(key) && key !== 'SHA256') {
+                        parameters.push(key);
+                    }
+                });
+            });
+
+            parameters.push('SHA256');
+
+            for (var j = 0; j < parameters.length; j++) {
+                var row = tbody.insertRow();
+                var parameterCell = row.insertCell();
+                parameterCell.textContent = parameters[j];
+
+                for (var k = 0; k < metadataList.length; k++) {
+                    var cell = row.insertCell();
+                    var metadata = metadataList[k];
+                    var differences = diffIndices[k];
+
+                    if (metadata.hasOwnProperty(parameters[j])) {
+                        var value = metadata[parameters[j]];
+                        cell.textContent = value;
+
+                        if (differences.includes(parameters[j])) {
+                            cell.classList.add('diff');
+                        }
+                    } else if (parameters[j] === 'SHA256') {
+                        var hashValue = metadata['SHA256'];
+                        cell.textContent = hashValue;
+                    }
+                }
+            }
+
+            tableContainer.appendChild(table);
+            
+            
+      // Filter table functionality
+      function filterTable(inputId) {
+        var input, filter, table, tr, td, i, txtValue;
+        input = document.getElementById(inputId);
+        filter = input.value.toUpperCase();
+        table = document.querySelector('.table');
+        tr = table.getElementsByTagName('tr');
+        for (i = 1; i < tr.length; i++) {
+          var visible = false;
+          for (var j = 0; j < tr[i].cells.length; j++) {
+            td = tr[i].getElementsByTagName('td')[j];
+            if (td) {
+              txtValue = td.textContent || td.innerText;
+              if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                visible = true;
+                break;
+              }
+            }
+          }
+          if (visible) {
+            tr[i].style.display = '';
+          } else {
+            tr[i].style.display = 'none';
+          }
+        }
+      }
+      document.getElementById('filterInput').addEventListener('keyup', function() {
+        filterTable('filterInput');
+      });
+      }
+    </script>
+    <!-- Bootstrap JS and jQuery (if required) -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  </body>
+</html>
